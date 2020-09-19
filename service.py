@@ -1,8 +1,9 @@
-from azure.cognitiveservices.computervision import ComputerVisionClient
-# from azure.cognitiveservices.computervision.models import OperationStatusCodes, VisualFeatureTypes
+from azure.cognitiveservices.vision.computervision import ComputerVisionClient
+# from azure.cognitiveservices.vision.computervision.models import OperationStatusCodes, VisualFeatureTypes
 from msrest.authentication import CognitiveServicesCredentials
+from pprint import pprint
 
-# import os
+import os
 # import sys
 # import time
 
@@ -25,11 +26,28 @@ def _authenticate() -> ComputerVisionClient:
     except KeyError as e:
         print(f'Error getting environment variable {ENV_CV_ENDPOINT}')
         raise e
-    
+
     return ComputerVisionClient(
         endpoint,
         CognitiveServicesCredentials(subscription_key)
     )
+
+
+def describe_image(client: ComputerVisionClient, remote_url: str):
+    """
+    Describe image contents - remote
+    """
+    print(f"Calling description API for image {remote_url}")
+
+    description_results = client.describe_image(remote_url)
+
+    print("Recieved image description:")
+    if (len(description_results.captions) == 0):
+        print("No description received")
+    else:
+        for caption in description_results.captions:
+            print(f"'{caption.text}' with confidence:\
+                  {caption.confidence * 100}")
 
 
 def main():
@@ -37,8 +55,7 @@ def main():
 
     remote_image_url = "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-sample-data-files/master/ComputerVision/Images/landmark.jpg"
 
-    
+    describe_image(client, remote_image_url)
 
-
-if __name__ == "main":
+if __name__ == "__main__":
     main()
