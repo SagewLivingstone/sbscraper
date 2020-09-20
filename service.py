@@ -50,12 +50,33 @@ def describe_image(client: ComputerVisionClient, remote_url: str):
                   {caption.confidence * 100}")
 
 
+def get_image_category(client: ComputerVisionClient, remote_url: str):
+    """
+    Get image categorization - remote
+    """
+    print(f"Calling categorization API for image {remote_url}")
+
+    remote_image_features = ["categories"]
+
+    categorize_results_remote = client.analyze_image(remote_url,
+                                                     remote_image_features)
+
+    print("Categories from image:")
+    if (len(categorize_results_remote.categories) == 0):
+        print("No categories detected")
+    else:
+        for category in categorize_results_remote.categories:
+            print(f"{category.name} with confidence {category.score * 100}")
+
+
 def main():
     client = _authenticate()
 
     remote_image_url = "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-sample-data-files/master/ComputerVision/Images/landmark.jpg"
 
     describe_image(client, remote_image_url)
+
+    get_image_category(client, remote_image_url)
 
 if __name__ == "__main__":
     main()
