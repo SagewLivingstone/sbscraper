@@ -1,17 +1,100 @@
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
-# from azure.cognitiveservices.vision.computervision.models import OperationStatusCodes, VisualFeatureTypes
+from azure.cognitiveservices.vision.computervision.models\
+    import OperationStatusCodes, Line
 from msrest.authentication import CognitiveServicesCredentials
 from pprint import pprint
 
 import os
-# import sys
-# import time
-
-# from array import array
-# from PIL import Image
+import time
 
 ENV_CV_SUBSCRIPTION_KEY = 'COMPUTER_VISION_SUBSCRIPTION_KEY'
 ENV_CV_ENDPOINT = 'COMPUTER_VISION_ENDPOINT'
+
+TEST_SCOREBOARD_IMAGE = 'https://i.stack.imgur.com/i5jSA.jpg'
+
+
+class Vec2():
+    """
+    2D vector
+    """
+
+    def __init__(self,
+                 x: int,
+                 y: int):
+        self.x = x
+        self.y = y
+
+    @staticmethod
+    def midpoint(a, b):
+        """
+        return midpoint of 2 vectors
+        """
+        return Vec2(
+            (a.x + b.x) / 2,
+            (a.y + b.y) / 2
+        )
+
+
+class BoundingBox():
+    """
+    image result bounding box
+    """
+
+    def __init__(self, vec2_arr: list):
+        self.top_left = vec2_arr[0]
+        self.top_right = vec2_arr[1]
+        self.bottom_right = vec2_arr[2]
+        self.bottom_left = vec2_arr[3]
+
+
+class TextItem():
+    """
+    model for text item found from read result
+    """
+
+    def __init__(self, line: Line):
+        self.text = line.text
+        self.bounding_box = self._parse_bounding_box_arr(line.bounding_box)
+
+        self.left_edge_center = Vec2.midpoint(
+            self.bounding_box.bottom_left,
+            self.bounding_box.top_left
+        )
+
+    @staticmethod
+    def _parse_bounding_box_arr(bounding_box: list) -> BoundingBox:
+        parsed = list()
+        try:
+            for i in range(0, 4):
+                parsed.append(
+                    Vec2(bounding_box[i], bounding_box[i+1])
+                )
+        except KeyError:
+            return None
+
+        return BoundingBox(parsed)
+
+
+class ImageResult():
+    """
+    object that hold methods for parsed image result from Azure OCR API
+    """
+
+    def __init__(self, image_text):
+        self.text_items = list()
+
+        if image_text:
+            for read_result in image_text.analyze_result.read_results:
+                for line in read_result.lines:
+                    # Add entry for text item
+                    self.text_items.append(TextItem(line))
+
+    def print_read_info(self):
+        for item in self.text_items:
+            print("Item Text:", item.text)
+            print("    Anchor: x:", item.left_edge_center.x, "y:",
+                  item.left_edge_center.y)
+            print()
 
 
 def _authenticate() -> ComputerVisionClient:
@@ -69,14 +152,39 @@ def get_image_category(client: ComputerVisionClient, remote_url: str):
             print(f"{category.name} with confidence {category.score * 100}")
 
 
+def read_image_text(client: ComputerVisionClient, remote_url: str):
+    """
+    read text from an image using the Azure OCR Read API
+    """
+    print(f"Calling read API on {remote_url}")
+
+    read_result = client.read(remote_url, raw=True)
+
+    operation_location_remote = read_result.headers['Operation-Location']
+    operation_id = operation_location_remote.split('/')[-1]
+
+    # GET method for read results
+    while True:
+        read_operation_result = client.get_read_result(operation_id)
+        if read_operation_result.status not in [
+            OperationStatusCodes.not_started,
+                OperationStatusCodes.running]:
+            break
+        time.sleep(1)  # Re-check every second
+
+    return read_operation_result if read_operation_result.status ==\
+        OperationStatusCodes.succeeded else None
+
+
 def main():
     client = _authenticate()
 
-    remote_image_url = "https://raw.githubusercontent.com/Azure-Samples/cognitive-services-sample-data-files/master/ComputerVision/Images/landmark.jpg"
+    # Call OCR API to get text readings and bounds
+    image_text = read_image_text(client, TEST_SCOREBOARD_IMAGE)
+    # Parse image results and build dict of entries
+    ir = ImageResult(image_text)
+    ir.print_read_info()
 
-    describe_image(client, remote_image_url)
-
-    get_image_category(client, remote_image_url)
 
 if __name__ == "__main__":
     main()
