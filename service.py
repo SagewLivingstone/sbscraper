@@ -19,8 +19,8 @@ class Vec2():
     """
 
     def __init__(self,
-                 x: int,
-                 y: int):
+                 x: float,
+                 y: float):
         self.x = x
         self.y = y
 
@@ -65,7 +65,7 @@ class TextItem():
     def _parse_bounding_box_arr(bounding_box: list) -> BoundingBox:
         parsed = list()
         try:
-            for i in range(0, 4):
+            for i in range(0, 8, 2):
                 parsed.append(
                     Vec2(bounding_box[i], bounding_box[i+1])
                 )
@@ -91,8 +91,12 @@ class ImageResult():
 
     def print_read_info(self):
         for item in self.text_items:
-            print("Item Text:", item.text)
-            print("    Anchor: x:", item.left_edge_center.x, "y:",
+            print("Item Text:", "'" + item.text + "'")
+            print("    Corner Anchor:  x:", item.bounding_box.top_left.x,
+                  "y:", item.bounding_box.top_left.y)
+            print("    Bottom Anchor:  x:", item.bounding_box.bottom_left.x,
+                  "y:", item.bounding_box.bottom_left.y)
+            print("    Left Anchor:    x:", item.left_edge_center.x, "y:",
                   item.left_edge_center.y)
             print()
 
