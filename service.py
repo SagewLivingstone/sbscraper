@@ -100,13 +100,20 @@ class ImageResult():
         """
         get the histogram dictionary of x, y coordinates for text results
         """
+        # TODO: This probably needs to be moved into a scoreboard class
         res = dict()
         for item in self.text_items:
             # TODO: Figure out of it is a left anchored or center-anchored text
-            loc = hist(item.left_edge_center.x, 20)
-            if loc not in res:
-                res[loc] = []
-            res[loc].append(item)
+            #  Hint: if the text contains only numerals, it is center anchored
+            #        otherwise, it is left anchored
+            x = hist(item.left_edge_center.x, 20)
+            y = hist(item.left_edge_center.y, 20)
+            if x not in res:
+                res[x] = dict()
+            if y not in res[x]:
+                res[x][y] = list()
+
+            res[x][y].append(item)
 
         return res
 
@@ -120,6 +127,16 @@ class ImageResult():
             print("    Left Anchor:    x:", item.left_edge_center.x, "y:",
                   item.left_edge_center.y)
             print()
+
+    def print_hist_dict(self):
+        text_items = self.get_text_hist_dict()
+
+        for x, ys in text_items.items():
+            print("x:", x)
+            for y, row_items in ys.items():
+                print("  y:", y)
+                for text_item in row_items:
+                    print("    ", text_item.text)
 
 
 def _authenticate() -> ComputerVisionClient:
@@ -208,10 +225,7 @@ def main():
     image_text = read_image_text(client, TEST_SCOREBOARD_IMAGE)
     # Parse image results and build dict of entries
     ir = ImageResult(image_text)
-    for key, val in ir.get_text_hist_dict().items():
-        print("Key:", key)
-        for text in val:
-            print("    ", text.text)
+    ir.print_hist_dict()
     # ir.print_read_info()
 
 
