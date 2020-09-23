@@ -13,6 +13,13 @@ ENV_CV_ENDPOINT = 'COMPUTER_VISION_ENDPOINT'
 TEST_SCOREBOARD_IMAGE = 'https://i.stack.imgur.com/i5jSA.jpg'
 
 
+def hist(a: float, r: float) -> float:
+    """
+    return the bucket number of the parameter a and range width r
+    """
+    return r*(round(a / r))
+
+
 class Vec2():
     """
     2D vector
@@ -88,6 +95,20 @@ class ImageResult():
                 for line in read_result.lines:
                     # Add entry for text item
                     self.text_items.append(TextItem(line))
+
+    def get_text_hist_dict(self) -> dict:
+        """
+        get the histogram dictionary of x, y coordinates for text results
+        """
+        res = dict()
+        for item in self.text_items:
+            # TODO: Figure out of it is a left anchored or center-anchored text
+            loc = hist(item.left_edge_center.x, 20)
+            if loc not in res:
+                res[loc] = []
+            res[loc].append(item)
+
+        return res
 
     def print_read_info(self):
         for item in self.text_items:
@@ -187,7 +208,11 @@ def main():
     image_text = read_image_text(client, TEST_SCOREBOARD_IMAGE)
     # Parse image results and build dict of entries
     ir = ImageResult(image_text)
-    ir.print_read_info()
+    for key, val in ir.get_text_hist_dict().items():
+        print("Key:", key)
+        for text in val:
+            print("    ", text.text)
+    # ir.print_read_info()
 
 
 if __name__ == "__main__":
