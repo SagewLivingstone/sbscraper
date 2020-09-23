@@ -5,6 +5,7 @@ from msrest.authentication import CognitiveServicesCredentials
 from pprint import pprint
 
 import os
+import re
 import time
 
 ENV_CV_SUBSCRIPTION_KEY = 'COMPUTER_VISION_SUBSCRIPTION_KEY'
@@ -63,9 +64,20 @@ class TextItem():
         self.text = line.text
         self.bounding_box = self._parse_bounding_box_arr(line.bounding_box)
 
-        self.left_edge_center = Vec2.midpoint(
+        self.left_anchor = Vec2.midpoint(
             self.bounding_box.bottom_left,
             self.bounding_box.top_left
+        )
+
+        self.center_anchor = Vec2.midpoint(
+            Vec2.midpoint(
+                self.bounding_box.bottom_left,
+                self.bounding_box.top_left
+            ),
+            Vec2.midpoint(
+                self.bounding_box.bottom_right,
+                self.bounding_box.top_right
+            )
         )
 
     @staticmethod
@@ -82,6 +94,7 @@ class TextItem():
         return BoundingBox(parsed)
 
 
+# TODO: Create a Scoreboard class that holds one of these:
 class ImageResult():
     """
     object that hold methods for parsed image result from Azure OCR API
@@ -96,6 +109,31 @@ class ImageResult():
                     # Add entry for text item
                     self.text_items.append(TextItem(line))
 
+    @staticmethod
+    def get_siege_text_anchor(text_item: TextItem):
+        """
+        return type of anchor for this text item based on text from a siege
+        scoreboard - updated 9/23/20
+        -------
+        we know:
+        numerals only - center anchor
+        contains alphanumerals - left anchor
+        """
+        numeral_exp = r"^\d{0,4}$"
+        name_exp = r"^(?=.{3,15}$)(?![_.0-9-])[a-zA-Z0-9._-]+$"
+
+        numeral = re.match(numeral_exp, text_item.text)
+        name = re.match(name_exp, text_item.text)
+
+        if numeral and name:
+            # TODO: both matched... do a sanity check?
+            return text_item.left_anchor
+        if numeral:
+            return text_item.center_anchor
+        if name:
+            return text_item.left_anchor
+        return None
+
     def get_text_hist_dict(self) -> dict:
         """
         get the histogram dictionary of x, y coordinates for text results
@@ -103,11 +141,13 @@ class ImageResult():
         # TODO: This probably needs to be moved into a scoreboard class
         res = dict()
         for item in self.text_items:
-            # TODO: Figure out of it is a left anchored or center-anchored text
-            #  Hint: if the text contains only numerals, it is center anchored
-            #        otherwise, it is left anchored
-            x = hist(item.left_edge_center.x, 20)
-            y = hist(item.left_edge_center.y, 20)
+            # Figure out of it is a left anchored or center-anchored text
+            anchor = ImageResult.get_siege_text_anchor(item)\
+                     or item.center_anchor
+
+            x = hist(anchor.x, 20)
+            y = hist(anchor.y, 20)
+
             if x not in res:
                 res[x] = dict()
             if y not in res[x]:
@@ -124,8 +164,8 @@ class ImageResult():
                   "y:", item.bounding_box.top_left.y)
             print("    Bottom Anchor:  x:", item.bounding_box.bottom_left.x,
                   "y:", item.bounding_box.bottom_left.y)
-            print("    Left Anchor:    x:", item.left_edge_center.x, "y:",
-                  item.left_edge_center.y)
+            print("    Left Anchor:    x:", item.left_anchor.x, "y:",
+                  item.left_anchor.y)
             print()
 
     def print_hist_dict(self):
