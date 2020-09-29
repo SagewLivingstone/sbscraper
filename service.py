@@ -64,7 +64,7 @@ class TextItem():
     """
 
     def __init__(self, line: Line):
-        self.text = line.text
+        self.text = self._get_cleansed_text(line.text)
         self.bounding_box = self._parse_bounding_box_arr(line.bounding_box)
 
         self.left_anchor = Vec2.midpoint(
@@ -84,6 +84,13 @@ class TextItem():
         )
 
         self._get_text_type()
+    
+    @staticmethod
+    def _get_cleansed_text(text: str) -> str:
+        text = text.replace('?', '')
+        if text.count(" ") <= 2:
+            text = text.replace(' ', '')
+        return text
 
     def _get_text_type(self):
         numeral = re.match(SIEGE_NUMERAL_EXP, self.text)
@@ -210,6 +217,61 @@ class Parser():
                     print("    ", text_item.text)
 
     def parse_siege_scoreboard(self):
+        """
+        new attempt at parsing the scoreboard
+        """
+        # Get all the possible name candidates in the results
+        name_cand = []
+        for item in self._result.text_items:
+            print(f" Found {item.text} at x: {item.anchor.x}")
+            if item.type == 'name':
+                name_cand.append(item)
+        name_cand.sort(key=lambda i: i.anchor.x)
+
+        print('-----------------')
+        print("Found these player candidates")
+        for item in name_cand:
+            print(f"x: {item.anchor.x} : {item.text}")
+        print("------------------")
+
+        # Find a continuous subset where 6+ are in a column within an error range
+        # TODO: Comment the fuck outa this
+        # TODO: Move this to a get_players function
+        result = []
+        TOLERANCE = 1.15
+        SECONDARY_TOLERANCE = 1.05
+        subset_length = 6  # This is a const
+        for i in range(0, len(name_cand) - (subset_length-1)):
+            subset_failed = False
+            subset = name_cand[i:i+subset_length]
+            col_x = subset[0].anchor.x
+            for item in subset:
+                if item.anchor.x >= TOLERANCE*col_x:
+                    subset_failed = True
+                    break
+
+            if not subset_failed:
+                print('--------------')
+                print("This subset didn't fail, adding extras:")
+                for item in subset:
+                    print(item.text)
+                result = subset
+                col_x = name_cand[i+subset_length-1].anchor.x
+                for j in range(i+subset_length, len(name_cand)):
+                    if name_cand[j].anchor.x < SECONDARY_TOLERANCE*col_x:
+                        result.append(name_cand[j])
+                        print(f"Adding: {name_cand[j].text}")
+                        col_x = name_cand[j].anchor.x
+                    else:
+                        print(f"Failed at: {name_cand[j].text}")
+                        break
+                break
+        print('-----------')
+        print(f"Got {len(result)} players")
+        for res in result:
+            print(res.text)
+
+    def parse_siege_scoreboard_old(self):
         # Algorithm overview:
         hist = self.get_text_hist_dict()
 
@@ -254,6 +316,16 @@ class Parser():
             deaths_col = stat_cols[keys[3]]
             ping_col = stat_cols[keys[4]]
         
+        # TODO !!!!!!!!!!!!!!!1
+        """
+        note: histogramming isn't gonna work if values land right on
+        the edge of a bucket. aka, we need a better way to find values
+        in a semi-grid
+
+        maybe look into ocr chart-detecting methods online
+        congregating around averages?
+        """
+        
         for y, player in names.items():
             if len(player) == 1:
                 player = player[0].text
@@ -278,7 +350,7 @@ class Parser():
                         break
             except KeyError:
                 print(f"Could not find kills for {player} at {y}")
-                continue
+                continu
             print(f"Player {player} :  {points} | {kills}")
 
         self.print_hist_dict()
@@ -355,7 +427,8 @@ def main():
     client = _authenticate()
 
     # Call OCR API to get text readings and bounds
-    p = Parser(client, TEST_SCOREBOARD_IMAGE)
+    image = "https://i.stack.imgur.com/i5jSA.jpg"
+    p = Parser(client, image)
     p.parse_siege_scoreboard()
     # p._result.print_hist_dict()
     # image_text = read_image_text(client, TEST_SCOREBOARD_IMAGE)
